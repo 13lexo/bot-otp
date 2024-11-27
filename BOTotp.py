@@ -6,6 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
@@ -30,16 +31,9 @@ def get_gmail_service():
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     else:
         # Si no hay un token guardado, proceder con la autenticación OAuth2.0
-        client_id = os.getenv('GOOGLE_CLIENT_ID')
-        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-        refresh_token = os.getenv('GOOGLE_REFRESH_TOKEN')
-
-        if client_id and client_secret and refresh_token:
-            # Crear las credenciales desde el archivo del cliente
-            creds = Credentials.from_client_secrets_file(
-                'credentials.json', SCOPES
-            )
-            creds.refresh(Request())  # Actualizar el token usando el refresh token
+        client_secrets_file = 'credentials.json'  # Ruta al archivo credentials.json
+        flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
+        creds = flow.run_local_server(port=0)  # Esto abrirá un navegador para autenticarse
 
     # Si las credenciales no son válidas o han expirado, pedir renovación o autenticación
     if not creds or not creds.valid:
@@ -90,7 +84,7 @@ async def send_code_to_telegram(code, chat_id):
     await bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
 
 async def start(update: Update, context):
-    """Manejar el comando /start y explicar cómo usar el bot."""
+    """Manejar el comando /start y explicar cómo usar el bot.""" 
     await update.message.reply_text(
         "¡Hola! Soy tu bot de verificación de Uber Eats. Envíame una dirección de correo electrónico y te daré el código de verificación asociado a esa cuenta. Creado por leXo. https://t.me/+F2gM5GGrt0Y1NzY0"
     )
