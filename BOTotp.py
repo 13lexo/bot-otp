@@ -1,16 +1,20 @@
 import os
 import base64
 import re
-import pickle
+from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from telegram import Bot, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
-# Configuración de Telegram
-TELEGRAM_TOKEN = '7745056911:AAENoA2p0dyWa1OuGP-2ncDQnXzDdxDZ2MM'
+# Cargar las variables de entorno desde el archivo .env
+load_dotenv()
+
+# Configuración de Telegram usando la variable de entorno TELEGRAM_TOKEN
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 
 # Expresión regular para extraer el código de verificación
 codigo_regex = r'<td class="p2b"[^>]*>(\d{4})</td>'
@@ -21,10 +25,22 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 def get_gmail_service():
     """Autenticación y creación del servicio de Gmail."""
     creds = None
-    # Cargar las credenciales desde token.json (ya generadas)
+
+    # Verificar si ya existen credenciales guardadas en las variables de entorno
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
+    else:
+        # Si no hay un token guardado, proceder con la autenticación OAuth2.0
+        client_id = os.getenv('GOOGLE_CLIENT_ID')
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
+        refresh_token = os.getenv('GOOGLE_REFRESH_TOKEN')
+
+        if client_id and client_secret and refresh_token:
+            creds = Credentials.from_client_info(
+                {'client_id': client_id, 'client_secret': client_secret}, SCOPES
+            )
+            creds.refresh(Request())  # Actualizar el token usando el refresh token
+
     # Si las credenciales no son válidas o han expirado, pedir renovación o autenticación
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
