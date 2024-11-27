@@ -6,7 +6,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
@@ -36,8 +35,9 @@ def get_gmail_service():
         refresh_token = os.getenv('GOOGLE_REFRESH_TOKEN')
 
         if client_id and client_secret and refresh_token:
-            creds = Credentials.from_client_info(
-                {'client_id': client_id, 'client_secret': client_secret}, SCOPES
+            # Crear las credenciales desde el archivo del cliente
+            creds = Credentials.from_client_secrets_file(
+                'credentials.json', SCOPES
             )
             creds.refresh(Request())  # Actualizar el token usando el refresh token
 
