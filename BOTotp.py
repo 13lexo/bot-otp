@@ -9,6 +9,7 @@ from google.oauth2.credentials import Credentials
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask, request
+import asyncio
 
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -25,6 +26,9 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 # Flask application
 app = Flask(__name__)
+
+# Bot global
+bot = Bot(token=TELEGRAM_TOKEN)
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -142,10 +146,7 @@ async def handle_message(update: Update, context):
 
 def main():
     """Iniciar el bot de Telegram y configurar el webhook."""
-    global bot
-    bot = Bot(token=TELEGRAM_TOKEN)
-
-    # Crear la aplicación de Telegram
+    global application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Agregar el comando /start
@@ -154,11 +155,12 @@ def main():
     # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Configurar el webhook en Telegram
-    bot.set_webhook(url='https://bot-otp-7.onrender.com')  # Asegúrate de cambiar 'your-render-url' por tu URL de Render
+    # Configurar el webhook
+    webhook_url = 'https://bot-otp-8.onrender.com/webhook'
+    asyncio.run(bot.set_webhook(url=webhook_url))  # Usar await correctamente
 
-    # Iniciar el servidor Flask para el webhook
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Asignar puerto dinámico para Render
+    # Iniciar el servidor Flask
+    app.run(host='0.0.0.0', port=10000)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
