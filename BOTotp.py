@@ -30,19 +30,21 @@ app = Flask(__name__)
 # Bot global
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# Inicializar el bot de Telegram y la aplicación
-application = Application.builder().token(TELEGRAM_TOKEN).build()
+# Ruta raíz para evitar el error 404
+@app.route('/')
+def index():
+    return "Bot está en funcionamiento", 200
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Recibir actualizaciones del bot de Telegram a través del webhook."""
-    json_str = request.get_data(as_text=True)
+    json_str = request.get_data(as_text=True)  # Obtener los datos JSON enviados al webhook
     update_dict = json.loads(json_str)  # Convertir la cadena JSON en un diccionario
 
     # Pasar el diccionario a Update.de_json()
     update = Update.de_json(update_dict, bot)
 
-    # Pasar el update al bot para que lo maneje
+    # Procesar la actualización usando la aplicación
     application.process_update(update)
     return 'ok', 200
 
@@ -113,17 +115,17 @@ def extract_verification_code(message):
                 return match.group(1)
     return None
 
-def send_code_to_telegram(code, chat_id):
+async def send_code_to_telegram(code, chat_id):
     """Enviar el código de verificación a Telegram."""
-    bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
+    await bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
 
-def start(update: Update, context):
+async def start(update: Update, context):
     """Manejar el comando /start y explicar cómo usar el bot."""
-    update.message.reply_text(
+    await update.message.reply_text(
         "¡Hola! Soy tu bot de verificación de Uber Eats. Envíame una dirección de correo electrónico y te daré el código de verificación asociado a esa cuenta. Creado por leXo."
     )
 
-def handle_message(update: Update, context):
+async def handle_message(update: Update, context):
     """Manejar el mensaje recibido por el bot."""
     user_id = update.message.chat_id
     email_address = update.message.text.strip()
@@ -132,7 +134,7 @@ def handle_message(update: Update, context):
     service = get_gmail_service()
 
     if not service:
-        send_code_to_telegram("No se pudo autenticar con Gmail.", user_id)
+        await send_code_to_telegram("No se pudo autenticar con Gmail.", user_id)
         return
 
     # Buscar el correo de Uber Eats para la dirección proporcionada
@@ -144,18 +146,33 @@ def handle_message(update: Update, context):
 
         if code:
             print(f'Código de verificación encontrado: {code}')
-            send_code_to_telegram(code, user_id)
+            await send_code_to_telegram(code, user_id)
         else:
             print('No se encontró un código de verificación en el correo.')
-            send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
+            await send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
     else:
         print(f'No se encontraron correos de Uber Eats para {email_address}.')
-        send_code_to_telegram('No se encontraron correos de Uber Eats.', user_id)
+        await send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
 
-# Configuración del webhook con la URL de Render
-bot.set_webhook(url='https://bot-otp-10.onrender.com')
+def main():
+    """Iniciar el bot de Telegram y escuchar mensajes."""
+    global bot
+    bot = Bot(token=TELEGRAM_TOKEN)
 
-# Ejecutar la aplicación de Flask
+    # Crear la aplicación
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Agregar el comando /start
+    application.add_handler(CommandHandler("start", start))
+
+    # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Establecer el webhook con la URL de Render
+    bot.set_webhook(url='https://bot-otp-11.onrender.com')
+
+    # Ejecutar el servidor Flask
+    app.run(host="0.0.0.0", port=10000)
+
 if __name__ == '__main__':
-    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-
+    main()
