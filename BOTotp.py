@@ -8,6 +8,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from flask import Flask, request
 
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -21,6 +22,17 @@ codigo_regex = r'<td class="p2b"[^>]*>(\d{4})</td>'
 # Configurar las credenciales de Google directamente desde las variables de entorno
 GOOGLE_CREDENTIALS = os.getenv('GOOGLE_CREDENTIALS')  # JSON completo como string
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+# Flask application
+app = Flask(__name__)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Recibir actualizaciones del bot de Telegram a través del webhook."""
+    json_str = request.get_data(as_text=True)
+    update = Update.de_json(json_str, bot)
+    application.process_update(update)
+    return 'ok', 200
 
 def get_gmail_service():
     """Autenticación y creación del servicio de Gmail con OAuth2."""
@@ -129,11 +141,11 @@ async def handle_message(update: Update, context):
         await send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
 
 def main():
-    """Iniciar el bot de Telegram y escuchar mensajes."""
+    """Iniciar el bot de Telegram y configurar el webhook."""
     global bot
     bot = Bot(token=TELEGRAM_TOKEN)
 
-    # Crear la aplicación
+    # Crear la aplicación de Telegram
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     # Agregar el comando /start
@@ -142,8 +154,11 @@ def main():
     # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Iniciar el bot
-    application.run_polling()
+    # Configurar el webhook en Telegram
+    bot.set_webhook(url='https://bot-otp-6.onrender.com')  # Asegúrate de cambiar 'your-render-url' por tu URL de Render
 
-if __name__ == '__main__':
+    # Iniciar el servidor Flask para el webhook
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Asignar puerto dinámico para Render
+
+if __name__ == "__main__":
     main()
