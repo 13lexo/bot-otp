@@ -10,6 +10,7 @@ from google.oauth2.credentials import Credentials
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask, request
+import asyncio
 
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -148,31 +149,23 @@ async def handle_message(update: Update, context):
             print(f'Código de verificación encontrado: {code}')
             await send_code_to_telegram(code, user_id)
         else:
-            print('No se encontró un código de verificación en el correo.')
             await send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
     else:
-        print(f'No se encontraron correos de Uber Eats para {email_address}.')
-        await send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
+        await send_code_to_telegram('No se encontraron correos de Uber Eats para esta dirección.', user_id)
 
-def main():
-    """Iniciar el bot de Telegram y escuchar mensajes."""
-    global bot
-    bot = Bot(token=TELEGRAM_TOKEN)
+# Configuración de la aplicación de Telegram
+application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Crear la aplicación
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+# Configuración del manejador de comandos
+application.add_handler(CommandHandler("start", start))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Agregar el comando /start
-    application.add_handler(CommandHandler("start", start))
+# Registrar el webhook
+@app.before_first_request
+def setup_webhook():
+    """Registrar el webhook en Telegram al iniciar la aplicación."""
+    bot.set_webhook(url='https://bot-otp-12.onrender.com')
 
-    # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Establecer el webhook con la URL de Render
-    bot.set_webhook(url='https://bot-otp-11.onrender.com')
-
-    # Ejecutar el servidor Flask
-    app.run(host="0.0.0.0", port=10000)
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    # Iniciar la aplicación de Flask y el servidor
+    app.run(host='0.0.0.0', port=5000)
