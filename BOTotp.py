@@ -155,7 +155,7 @@ def main():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     # Configurar el webhook en Telegram
-    bot.set_webhook(url='https://bot-otp-6.onrender.com')  # Asegúrate de cambiar 'your-render-url' por tu URL de Render
+    bot.set_webhook(url='https://bot-otp-7.onrender.com')  # Asegúrate de cambiar 'your-render-url' por tu URL de Render
 
     # Iniciar el servidor Flask para el webhook
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Asignar puerto dinámico para Render
