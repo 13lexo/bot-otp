@@ -1,6 +1,7 @@
 import os
 import base64
 import re
+import json
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -9,7 +10,6 @@ from google.oauth2.credentials import Credentials
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask, request
-import asyncio
 
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -30,11 +30,19 @@ app = Flask(__name__)
 # Bot global
 bot = Bot(token=TELEGRAM_TOKEN)
 
+# Inicializar el bot de Telegram y la aplicación
+application = Application.builder().token(TELEGRAM_TOKEN).build()
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Recibir actualizaciones del bot de Telegram a través del webhook."""
     json_str = request.get_data(as_text=True)
-    update = Update.de_json(json_str, bot)
+    update_dict = json.loads(json_str)  # Convertir la cadena JSON en un diccionario
+
+    # Pasar el diccionario a Update.de_json()
+    update = Update.de_json(update_dict, bot)
+
+    # Pasar el update al bot para que lo maneje
     application.process_update(update)
     return 'ok', 200
 
@@ -105,17 +113,17 @@ def extract_verification_code(message):
                 return match.group(1)
     return None
 
-async def send_code_to_telegram(code, chat_id):
+def send_code_to_telegram(code, chat_id):
     """Enviar el código de verificación a Telegram."""
-    await bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
+    bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
 
-async def start(update: Update, context):
+def start(update: Update, context):
     """Manejar el comando /start y explicar cómo usar el bot."""
-    await update.message.reply_text(
+    update.message.reply_text(
         "¡Hola! Soy tu bot de verificación de Uber Eats. Envíame una dirección de correo electrónico y te daré el código de verificación asociado a esa cuenta. Creado por leXo."
     )
 
-async def handle_message(update: Update, context):
+def handle_message(update: Update, context):
     """Manejar el mensaje recibido por el bot."""
     user_id = update.message.chat_id
     email_address = update.message.text.strip()
@@ -124,7 +132,7 @@ async def handle_message(update: Update, context):
     service = get_gmail_service()
 
     if not service:
-        await send_code_to_telegram("No se pudo autenticar con Gmail.", user_id)
+        send_code_to_telegram("No se pudo autenticar con Gmail.", user_id)
         return
 
     # Buscar el correo de Uber Eats para la dirección proporcionada
@@ -136,31 +144,28 @@ async def handle_message(update: Update, context):
 
         if code:
             print(f'Código de verificación encontrado: {code}')
-            await send_code_to_telegram(code, user_id)
+            send_code_to_telegram(code, user_id)
         else:
             print('No se encontró un código de verificación en el correo.')
-            await send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
+            send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
     else:
         print(f'No se encontraron correos de Uber Eats para {email_address}.')
-        await send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
+        send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
 
 def main():
-    """Iniciar el bot de Telegram y configurar el webhook."""
-    global application
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-
+    """Iniciar el bot de Telegram y escuchar mensajes."""
     # Agregar el comando /start
     application.add_handler(CommandHandler("start", start))
 
     # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Configurar el webhook
-    webhook_url = 'https://bot-otp-8.onrender.com/webhook'
-    asyncio.run(bot.set_webhook(url=webhook_url))  # Usar await correctamente
+    # Configurar webhook
+    bot.set_webhook(url='https://bot-otp-9.onrender.com/webhook')
 
-    # Iniciar el servidor Flask
-    app.run(host='0.0.0.0', port=10000)
+    # Iniciar la aplicación de Flask
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)))
 
 if __name__ == '__main__':
     main()
+
