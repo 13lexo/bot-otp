@@ -150,22 +150,12 @@ def handle_message(update: Update, context):
             send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
     else:
         print(f'No se encontraron correos de Uber Eats para {email_address}.')
-        send_code_to_telegram(f'No se encontraron correos de Uber Eats para {email_address}.', user_id)
+        send_code_to_telegram('No se encontraron correos de Uber Eats.', user_id)
 
-def main():
-    """Iniciar el bot de Telegram y escuchar mensajes."""
-    # Agregar el comando /start
-    application.add_handler(CommandHandler("start", start))
+# Configuración del webhook con la URL de Render
+bot.set_webhook(url='https://bot-otp-10.onrender.com')
 
-    # Agregar el handler para manejar mensajes de texto (dirección de correo electrónico)
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    # Configurar webhook
-    bot.set_webhook(url='https://bot-otp-9.onrender.com/webhook')
-
-    # Iniciar la aplicación de Flask
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', 10000)))
-
+# Ejecutar la aplicación de Flask
 if __name__ == '__main__':
-    main()
+    app.run(debug=False, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
 
