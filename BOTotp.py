@@ -6,7 +6,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
@@ -19,40 +18,51 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 # Expresión regular para extraer el código de verificación
 codigo_regex = r'<td class="p2b"[^>]*>(\d{4})</td>'
 
-# Definir el alcance de acceso a la cuenta de Gmail
+# Configurar las credenciales de Google directamente desde las variables de entorno
+GOOGLE_CREDENTIALS = os.getenv('GOOGLE_CREDENTIALS')  # JSON completo como string
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def get_gmail_service():
-    """Autenticación y creación del servicio de Gmail."""
-    creds = None
-
-    # Verificar si ya existen credenciales guardadas en las variables de entorno
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    else:
-        # Si no hay un token guardado, proceder con la autenticación OAuth2.0
-        client_secrets_file = 'credentials.json'  # Ruta al archivo credentials.json
-        flow = InstalledAppFlow.from_client_secrets_file(client_secrets_file, SCOPES)
-        creds = flow.run_local_server(port=0)  # Esto abrirá un navegador para autenticarse
-
-    # Si las credenciales no son válidas o han expirado, pedir renovación o autenticación
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            print("Las credenciales no son válidas. Vuelve a autorizar.")
+    """Autenticación y creación del servicio de Gmail con OAuth2."""
+    try:
+        if not GOOGLE_CREDENTIALS:
+            print("Credenciales de Google no encontradas en las variables de entorno.")
             return None
 
-    service = build('gmail', 'v1', credentials=creds)
-    return service
+        # Convertir las credenciales en formato JSON a un diccionario
+        creds_info = eval(GOOGLE_CREDENTIALS)
+
+        # Crear credenciales de OAuth2 usando el token de acceso y el refresh token
+        creds = Credentials(
+            token=creds_info['token'],
+            refresh_token=creds_info['refresh_token'],
+            token_uri=creds_info['token_uri'],
+            client_id=creds_info['client_id'],
+            client_secret=creds_info['client_secret'],
+            scopes=SCOPES,
+        )
+
+        # Si el token ha expirado, renovarlo
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+
+        # Crear el servicio de Gmail
+        service = build('gmail', 'v1', credentials=creds)
+        return service
+    except Exception as e:
+        print(f"Error al autenticar con Gmail: {e}")
+        return None
 
 def search_verification_emails(service, email_address):
     """Buscar correos de Uber Eats enviados a una dirección específica."""
     try:
         # Buscar correos con el remitente y asunto específicos y filtrados por la dirección 'To'
-        results = service.users().messages().list(userId='me', q=f"from:admin@uber.com subject:Your Uber account verification code to:{email_address}").execute()
+        results = service.users().messages().list(
+            userId='me',
+            q=f"from:admin@uber.com subject:Your Uber account verification code to:{email_address}",
+        ).execute()
         messages = results.get('messages', [])
-        
+
         if not messages:
             print(f"No se encontraron correos de Uber Eats enviados a {email_address}.")
             return None
@@ -62,7 +72,7 @@ def search_verification_emails(service, email_address):
         return message
 
     except HttpError as error:
-        print(f'Ha ocurrido un error: {error}')
+        print(f"Ha ocurrido un error: {error}")
         return None
 
 def extract_verification_code(message):
@@ -72,7 +82,7 @@ def extract_verification_code(message):
             # Extraer el cuerpo HTML del correo
             data = message['payload']['body']['data']
             body = base64.urlsafe_b64decode(data).decode('utf-8')
-            
+
             # Buscar el código de verificación usando la expresión regular
             match = re.search(codigo_regex, body)
             if match:
@@ -84,9 +94,9 @@ async def send_code_to_telegram(code, chat_id):
     await bot.send_message(chat_id=chat_id, text=f'El código de verificación de Uber Eats es: {code}')
 
 async def start(update: Update, context):
-    """Manejar el comando /start y explicar cómo usar el bot.""" 
+    """Manejar el comando /start y explicar cómo usar el bot."""
     await update.message.reply_text(
-        "¡Hola! Soy tu bot de verificación de Uber Eats. Envíame una dirección de correo electrónico y te daré el código de verificación asociado a esa cuenta. Creado por leXo. https://t.me/+F2gM5GGrt0Y1NzY0"
+        "¡Hola! Soy tu bot de verificación de Uber Eats. Envíame una dirección de correo electrónico y te daré el código de verificación asociado a esa cuenta. Creado por leXo."
     )
 
 async def handle_message(update: Update, context):
@@ -96,18 +106,18 @@ async def handle_message(update: Update, context):
 
     # Obtener el servicio de Gmail con el token
     service = get_gmail_service()
-    
+
     if not service:
         await send_code_to_telegram("No se pudo autenticar con Gmail.", user_id)
         return
 
     # Buscar el correo de Uber Eats para la dirección proporcionada
     message = search_verification_emails(service, email_address)
-    
+
     if message:
         # Extraer el código de verificación
         code = extract_verification_code(message)
-        
+
         if code:
             print(f'Código de verificación encontrado: {code}')
             await send_code_to_telegram(code, user_id)
