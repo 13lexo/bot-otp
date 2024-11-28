@@ -10,7 +10,7 @@ from google.oauth2.credentials import Credentials
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 from flask import Flask, request
-import asyncio
+import time
 
 # Cargar las variables de entorno desde el archivo .env
 load_dotenv()
@@ -48,6 +48,14 @@ def webhook():
     # Procesar la actualización usando la aplicación
     application.process_update(update)
     return 'ok', 200
+
+def set_telegram_webhook():
+    """Configura el webhook de Telegram cuando se inicie la aplicación."""
+    webhook_url = 'https://bot-otp-13.onrender.com/webhook'  # Cambia esta URL por la URL de tu servidor en Render
+    bot.set_webhook(url=webhook_url)
+
+# Llamar a la configuración del webhook antes de iniciar el servidor
+set_telegram_webhook()
 
 def get_gmail_service():
     """Autenticación y creación del servicio de Gmail con OAuth2."""
@@ -149,23 +157,21 @@ async def handle_message(update: Update, context):
             print(f'Código de verificación encontrado: {code}')
             await send_code_to_telegram(code, user_id)
         else:
+            print('No se encontró un código de verificación en el correo.')
             await send_code_to_telegram('No se encontró un código de verificación en el correo.', user_id)
     else:
-        await send_code_to_telegram('No se encontraron correos de Uber Eats para esta dirección.', user_id)
-
-# Configuración de la aplicación de Telegram
-application = Application.builder().token(TELEGRAM_TOKEN).build()
-
-# Configuración del manejador de comandos
-application.add_handler(CommandHandler("start", start))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-# Registrar el webhook
-@app.before_first_request
-def setup_webhook():
-    """Registrar el webhook en Telegram al iniciar la aplicación."""
-    bot.set_webhook(url='https://bot-otp-12.onrender.com')
+        print(f'No se encontraron correos de Uber Eats para la dirección {email_address}.')
+        await send_code_to_telegram('No se encontraron correos de Uber Eats.', user_id)
 
 if __name__ == "__main__":
-    # Iniciar la aplicación de Flask y el servidor
+    from telegram.ext import Application
+
+    # Configura la aplicación y los manejadores
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Agregar los manejadores
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Iniciar el servidor Flask
     app.run(host='0.0.0.0', port=5000)
